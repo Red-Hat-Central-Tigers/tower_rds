@@ -1,0 +1,2 @@
+towerpass: "{{ lookup('aws_ssm', 'default_towerpass', region='us-east-1') }}"
+pg_pass: "{{ lookup('aws_ssm', 'default_pg_pass', region='us-east-1') }}"
