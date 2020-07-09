@@ -107,6 +107,8 @@
 
 - name: Clean Cache
   command: yum clean all
+  args:
+    warn: false
 
 - include_tasks: install.yml
   when: inventory_hostname == name_prefix + "-tower-1"
