@@ -1,7 +1,7 @@
 name_prefix: tower-rds
-towerpass: "ansible"
+#towerpass: "ansible"
 pg_user: "ansible"
-pg_pass: "ansible"
+#pg_pass: "ansible"
 ec2_region: "us-east-1"
 root_user: centos
 ptr_zone_cidr: "10.0.1.0/24"

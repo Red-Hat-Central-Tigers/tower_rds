@@ -6,13 +6,13 @@
     - name: Check tower password
       assert:
         that:
-          - towerpass != "ansible"
+          - towerpass is defined
         msg: "'towerpass' must be changed from default"
 
     - name: Check pg_pass password
       assert:
         that:
-          - pg_pass != "ansible"
+          - pg_pass is defined
         msg: "'pg_pass' must be changed from default"
 
     - name: Check Tower License
