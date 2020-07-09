@@ -139,7 +139,7 @@
     db_name: "tower"
     username: "{{ pg_user }}"
     password: "{{ pg_pass }}"
-    allocated_storage: 2
+    allocated_storage: 8
   register: dbinstance
 
 - debug:
