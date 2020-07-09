@@ -2,7 +2,7 @@
   hosts: localhost
   gather_facts: no
   connection: local
-  var_files:
+  vars_files:
     - var_files/aws.yml
   pre_tasks:
     - name: Check tower password
@@ -29,7 +29,7 @@
 - name: Configure Each Tower Node
   hosts: tower
   become: true
-  var_files:
+  vars_files:
     - var_files/aws.yml
   roles:
     - common
