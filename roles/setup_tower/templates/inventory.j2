@@ -1,0 +1,30 @@
+[tower]
+{% for entry in groups['tower'] %}
+{{ entry }}{% if entry == inventory_hostname %} ansible_connection=local{% endif %}
+
+{% endfor %}
+
+[database]
+
+
+[all:vars]
+admin_password='{{ towerpass }}'
+ansible_user={{ root_user }}
+ansible_ssh_private_key_file=/home/{{ root_user }}/.ssh/aws-private.pem
+ansible_become=yes
+ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+
+pg_host='{{ db.endpoint.address }}'
+pg_port='5432'
+
+pg_database='tower'
+pg_username='{{ pg_user }}'
+pg_password='{{ pg_pass }}'
+
+
+# Isolated Tower nodes automatically generate an RSA key for authentication;
+# To disable this behavior, set this value to false
+# isolated_key_generation=true
+
+
+

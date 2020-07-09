@@ -1,0 +1,35 @@
+- name: Provision Tower
+  hosts: localhost
+  gather_facts: no
+  connection: local
+  pre_tasks:
+    - name: Check tower password
+      assert:
+        that:
+          - towerpass != "ansible"
+        msg: "'towerpass' must be changed from default"
+
+    - name: Check pg_pass password
+      assert:
+        that:
+          - pg_pass != "ansible"
+        msg: "'pg_pass' must be changed from default"
+
+    - name: Check Tower License
+      assert:
+        that:
+          - tower_license is defined
+        msg: "'tower_license' must be set"
+
+  roles:
+    - provision
+
+- name: Configure Each Tower Node
+  hosts: tower
+  become: true
+  roles:
+    - common
+    - setup_tower
+
+
+

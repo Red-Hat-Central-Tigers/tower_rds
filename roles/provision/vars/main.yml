@@ -1,0 +1,30 @@
+ec2_image_names:
+  rhel7: "RHEL-7.7_HVM_GA*x86_64*"
+  rhel8: "RHEL-8.1.0_HVM_GA*x86_64*"
+  centos7: "CentOS Linux 7 x86_64 HVM EBS ENA 1901_01*"
+  win2016_core: "Windows_Server-2016-English-Core-Base*"
+  win2016_full: "Windows_Server-2016-English-Full-Base*"
+  win2019_core: "Windows_Server-2019-English-Core-Base*"
+  win2019_full: "Windows_Server-2019-English-Full-Base*"
+
+ec2_tower_instance_type: "t2.medium"
+ec2_tower_instance_ami_type: centos7
+ec2_gitlab_instance_type: "t2.medium"
+ec2_gitlab_instance_ami_type: rhel7
+ec2_docs_instance_type: "t2.medium"
+ec2_docs_instance_ami_type: rhel7
+ec2_windc_instance_type: "t3.medium"
+ec2_windc_instance_ami_type: win2019_core
+ec2_windows_workstation_instance_type: "t3.medium"
+# There seems to be an issue using win_chocolatey and win2019_full. See https://github.com/ansible/ansible/issues/47821
+ec2_windows_workstation_instance_ami_type: win2019_full # See the ec2_image_names variable for lookup
+ec2_windows_instance_type: "t3.small"
+ec2_windows_instance_ami_type: win2019_core
+
+ansible_python_interpreter: /usr/libexec/platform-python
+
+
+ec2_region: "us-east-1"
+
+ptr_zone_cidr: "10.0.1.0/24"
+

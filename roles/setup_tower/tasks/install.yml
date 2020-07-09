@@ -1,0 +1,74 @@
+---
+- name: Put ssh-key in proper spot for student
+  copy:
+    src: "{{ playbook_dir }}/keys/{{ name_prefix }}-private.pem"
+    dest: "/home/{{ root_user }}/.ssh/aws-private.pem"
+    owner: "{{ root_user }}"
+    group: "{{ root_user }}"
+    mode: 0400
+
+- name: check if we need to do installer things
+  uri:
+    url: https://localhost/api/v2/ping/
+    method: GET
+    user: admin
+    password: "{{ towerpass }}"
+    validate_certs: False
+  register: checkout
+  ignore_errors: True
+  failed_when: false
+
+- name: set condtional if the above didn't error
+  set_fact:
+    towerchk: "{{ checkout.json.version }}"
+  when: checkout.json is defined
+
+- name: download tower installer
+  get_url:
+    url: https://releases.ansible.com/ansible-tower/setup-bundle/ansible-tower-setup-bundle-{{ towerversion }}.tar.gz
+    dest: /tmp/ansible-tower-setup-bundle-{{ towerversion }}.tar.gz
+    mode: 0640
+  when: towerchk not in towerversion
+
+- name: extract installer
+  unarchive:
+    src: /tmp/ansible-tower-setup-bundle-{{ towerversion }}.tar.gz
+    dest: /tmp/
+    remote_src: True
+  when: towerchk not in towerversion
+
+- name: template inventory file
+  template:
+    src: inventory.j2
+    dest: /tmp/ansible-tower-setup-bundle-{{ towerversion }}/inventory
+  when: towerchk != towerversion
+
+- name: run the tower installer
+  shell: ./setup.sh chdir=/tmp/ansible-tower-setup-bundle-{{ towerversion }}
+  when: towerchk not in towerversion
+
+- name: wait for tower to be up
+  uri:
+    url: https://localhost/api/v2/ping/
+    method: GET
+    user: admin
+    password: "{{ towerpass }}"
+    validate_certs: False
+    force_basic_auth: yes
+  register: check2
+  until: check2.json is defined and check2.json.version in towerversion
+  retries: 10
+  delay: 30
+  when: towerchk not in towerversion
+
+- name: Post license key
+  uri:
+    url: https://localhost/api/v2/config/
+    method: POST
+    user: admin
+    password: "{{ towerpass }}"
+    body: "{{ tower_license }}"
+    body_format: json
+    validate_certs: False
+    force_basic_auth: yes
+  ignore_errors: True

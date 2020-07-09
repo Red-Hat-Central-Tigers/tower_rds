@@ -1,0 +1,5 @@
+#cloud-config
+hostname: {{ name_prefix + '-tower-' + item }}
+manage_etc_hosts: true
+chpasswd: { expire: False }
+ssh_pwauth: True

@@ -1,0 +1,176 @@
+
+- include_tasks: check.yml
+
+- include_tasks: find_amis.yml
+
+
+################### Create Resources ###################
+- name: Create AWS VPC {{ name_prefix }}-vpc
+  ec2_vpc_net:
+    name: "{{ name_prefix }}-vpc"
+    cidr_block: "{{ ptr_zone_cidr }}"
+    region: "{{ ec2_region }}"
+    tags:
+      Name: "{{ name_prefix }}-vpc"
+  register: create_vpc
+  until: create_vpc is not failed
+  retries: 5
+
+- name: Set VPC ID
+  set_fact:
+    ec2_vpc_id: "{{ create_vpc.vpc.id }}"
+
+- name: Create subnet for {{ name_prefix }}-vpc
+  ec2_vpc_subnet:
+    region: "{{ ec2_region }}"
+    az: "{{ ec2_az }}"
+    vpc_id: "{{ ec2_vpc_id }}"
+    cidr: "{{ ptr_zone_cidr }}"
+    wait_timeout: 600
+    resource_tags:
+      Name: "{{ name_prefix }}-subnet"
+  register: create_subnet
+  until: create_subnet is not failed
+  retries: 15
+
+- name: Set Subnet ID
+  set_fact:
+    ec2_vpc_subnet_id: "{{ create_subnet.subnet.id }}"
+
+- name: Create Internet Gateway
+  ec2_vpc_igw:
+    vpc_id: "{{ ec2_vpc_id }}"
+    region: "{{ ec2_region }}"
+    tags:
+      Name: "{{ name_prefix }}-igw"
+    state: present
+  register: igw
+  until: igw is not failed
+  retries: 15
+
+- name: vpc public subnet route table is present for {{ ec2_vpc_id }}
+  ec2_vpc_route_table:
+    region: "{{ ec2_region }}"
+    vpc_id: "{{ ec2_vpc_id }}"
+    subnets:
+      - "{{ ec2_vpc_subnet_id }}"
+    routes:
+      - dest: 0.0.0.0/0
+        gateway_id: "{{ igw.gateway_id }}"
+    tags:
+      Name: "{{ name_prefix }}-route"
+  register: routetable
+  until: routetable is not failed
+  retries: 5
+
+- name: Create ssh key pair for workshop {{ name_prefix }}
+  ec2_key:
+    name: "{{ name_prefix }}-key"
+    region: "{{ ec2_region }}"
+  register: create_key
+
+- name: Save the private key
+  copy:
+    content: "{{ create_key.key.private_key }}"
+    dest: "{{ playbook_dir }}/keys/{{ name_prefix }}-private.pem"
+    mode: '0400'
+  when: create_key.changed
+
+################### Create Security Groups ###################
+- name: Tower | Create Ansible Control Node security group
+  ec2_group:
+    name: "{{ name_prefix }}-towersg"
+    description: "Ansible Tower SG"
+    vpc_id: "{{ ec2_vpc_id }}"
+    region: "{{ ec2_region }}"
+    tags:
+      Name: "{{ name_prefix }}-towersg"
+    rules:
+      - proto: tcp
+        from_port: 80
+        to_port: 80
+        cidr_ip: 0.0.0.0/0
+      - proto: tcp
+        from_port: 443
+        to_port: 443
+        cidr_ip: 0.0.0.0/0
+      - proto: tcp
+        from_port: 22
+        to_port: 22
+        cidr_ip: 0.0.0.0/0
+      - proto: all
+        cidr_ip: "{{ ptr_zone_cidr }}"
+
+
+################### Build Instances ###################
+
+- name: Launch Tower Instance
+  ec2:
+    key_name: "{{ name_prefix }}-key"
+    group: "{{ name_prefix }}-towersg"
+    instance_type: "{{ ec2_tower_instance_type }}"
+    exact_count: 1
+    count_tag:
+      Name: "{{ name_prefix + '-tower-' + item }}"
+    instance_tags:
+      Name: "{{ name_prefix + '-tower-' + item }}"
+      short_name: "{{ 's' + item + '-tower' }}"
+    image: "{{ ec2_ami_ids[ec2_tower_instance_ami_type] }}"
+    wait: true
+    region: "{{ ec2_region }}"
+    vpc_subnet_id: "{{ ec2_vpc_subnet_id }}"
+    user_data: "{{ lookup('template', 'linux_ec2_user_data.j2') }}"
+    assign_public_ip: yes
+  with_sequence: count=3
+  register: tower_jobs
+  async: 7200
+  poll: 0
+
+################### Create DB ###################
+
+- name: Create a DB instance
+  rds_instance:
+    region: "{{ ec2_region }}"
+    id: "{{ name_prefix }}-tower-db"
+    state: present
+    engine: postgres
+    storage_encrypted: True
+    db_instance_class: db.t2.medium
+    db_name: "tower"
+    username: "{{ pg_user }}"
+    password: "{{ pg_pass }}"
+    allocated_storage: 2
+  register: dbinstance
+
+- debug:
+    var: dbinstance
+
+
+################### Add Hosts ###################
+
+- name: Wait for tower instance creation to complete
+  async_status: jid="{{ item.ansible_job_id }}"
+  register: tower_instances
+  until: tower_instances.finished
+  retries: 300
+  with_items: "{{ tower_jobs.results }}"
+
+- name: Tower | Add new instance to host group
+  add_host:
+    hostname: "{{ item.tags.Name }}"
+    ansible_user: "{{ root_user }}"
+    ansible_ssh_private_key_file: "{{ playbook_dir }}/keys/{{ name_prefix }}-private.pem"
+    ansible_host: "{{ item.public_ip }}"
+    private_ip: "{{ item.private_ip }}"
+    tower_license: "{{ tower_license }}"
+    db: "{{ dbinstance }}"
+    groups: tower
+  with_items: "{{ tower_instances.results | map(attribute='tagged_instances') | list }}"
+
+- name: Tower | Wait for SSH to come up  
+  wait_for_connection:  
+  delegate_to: "{{ item }}"
+  with_items: "{{ groups['tower'] }}"  
+
+
+
